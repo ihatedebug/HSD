@@ -16,6 +16,7 @@ FPGA::FPGA(off_t data_addr, off_t output_addr, int m_size, int v_size)
 
   data_size_ = (m_size_+1)*v_size_; // fpga bram data size
   data_size_M = (2*v_size_)*v_size_*sizeof(float);
+  blk_size_M = 8 * 2 * sizeof(float);
 
   fd_ = open("/dev/mem", O_RDWR);
   data_M = static_cast<float*>(mmap(NULL, data_size_M, PROT_READ|PROT_WRITE, MAP_SHARED, fd_, data_addr));
@@ -24,6 +25,7 @@ FPGA::FPGA(off_t data_addr, off_t output_addr, int m_size, int v_size)
   output_ = static_cast<unsigned int*>(mmap(NULL, sizeof(unsigned int), PROT_READ|PROT_WRITE, MAP_SHARED,fd_, output_addr));
   output_MV = new unsigned int[m_size_];
   // output_M = static_cast<unsigned int*>(NULL);
+  fpga_dma = static_cast<unsigned int*>(mmap(NULL, blk_size_m, PROT_READ|PROT_WRITE, MAP_SHARED, fd_, 0x7E200000));
 
   num_block_call_ = 0;
 }
@@ -93,9 +95,21 @@ const float* __attribute__((optimize("O0"))) FPGA::blockMM()
 {
   num_block_call_ += 1;
 
+  *(fpga_dma + 6) = 0x10000000;
+  *(fpga_dma + 8) = 0xC0000000;
+  *(fpga_dma + 10) = 2 * v_size_ * v_size_ * sizeof(float);
+  while ((*(fpga_dma + 1) & 0x00000002) == 0)
+      ;
   // fpga version
   *output_ = 0x5555;
-  while(*output_ == 0x5555);
+  while (*output_ == 0x5555)
+      ;
+
+  *(fpga_dma + 6) = 0xC0000000;
+  *(fpga_dma + 8) = 0x10000000;
+  *(fpga_dma + 10) = 2 * v_size_ * v_size_ * sizeof(float);
+  while ((*(fpga_dma + 1) & 0x00000002) == 0)
+      ;
 
   return data_M;    
 }
