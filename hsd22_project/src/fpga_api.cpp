@@ -157,7 +157,7 @@ void FPGA::largeMM(const float *weight_mat, const float *input_mat, float *outpu
     for (int j = 0; j < num_output; j++){
         // 1) Compute Non-zero data & indices
         for(int i = 0; i< GROUP_NUM ; i++){
-            float *test_block = {ABS(weight_mat[j*num_input + i*ELEM_NUM]), ABS(weight_mat[j*num_input + i*ELEM_NUM + 1]), ABS(weight_mat[j*num_input + i*ELEM_NUM + 2]), ABS(weight_mat[j*num_input + i*ELEM_NUM + 3])};
+            float test_block [ELEM_NUM] = {ABS(weight_mat[j*num_input + i*ELEM_NUM]), ABS(weight_mat[j*num_input + i*ELEM_NUM + 1]), ABS(weight_mat[j*num_input + i*ELEM_NUM + 2]), ABS(weight_mat[j*num_input + i*ELEM_NUM + 3])};
             int min1_index = 0;
             int min2_index = 1;
             if(test_block[2]<test_block[min1_index])
