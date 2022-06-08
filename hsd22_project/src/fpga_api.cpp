@@ -144,7 +144,6 @@ void FPGA::largeMM(const float *weight_mat, const float *input_mat, float *outpu
     #define GROUP_NUM (num_output/4)
     #define LEFTOVER (num_output%4)
     #define ELEM_NUM 4
-    #define NONZERO_VSIZE = (v_size_/2)
 
     int nonzero_row_num = ((GROUP_NUM)*2 + LEFTOVER);
     float *nonzero_data = new float[nonzero_row_num*num_input];
@@ -158,8 +157,8 @@ void FPGA::largeMM(const float *weight_mat, const float *input_mat, float *outpu
         // 1) Compute Non-zero data & indices
         for(int i = 0; i< GROUP_NUM ; i++){
             float *test_block = {abs(weight_mat[j*num_input + i*ELEM_NUM]), abs(weight_mat[j*num_input + i*ELEM_NUM + 1]), abs(weight_mat[j*num_input + i*ELEM_NUM + 2]), abs(weight_mat[j*num_input + i*ELEM_NUM + 3])};
-            float min1_index = 0;
-            float min2_index = 1;
+            int min1_index = 0;
+            int min2_index = 1;
             if(test_block[2]<test_block[min1_index])
                 min1_index = 2;
             else if (test_block[2]<test_block[min2_index])
@@ -173,13 +172,14 @@ void FPGA::largeMM(const float *weight_mat, const float *input_mat, float *outpu
                 min2_index = min1_index;
                 min1_index = tmp;
             }
-            nonzero_data[nonzero_row_num*j+ i*2] = test_block[min1_index];
-            nonzero_data[nonzero_row_num*j+ i*2 + 1] = test_block[min2_index];
-            nonzero_row_num[nonzero_row_num*j + i*2] = i + i*ELEM_NUM + min1_index;
-            nonzero_row_num[nonzero_row_num*j + i*2 + 1] = i*ELEM_NUM + min2_index;
+            nonzero_data[nonzero_row_num*j+ i*2] = weight_mat[j*num_input + i*ELEM_NUM + min1_index];
+            nonzero_data[nonzero_row_num*j+ i*2 + 1] = weight_mat[j*num_input + i*ELEM_NUM + min2_index];
+            nonzero_rows[nonzero_row_num*j + i*2] = i + i*ELEM_NUM + min1_index;
+            nonzero_rows[nonzero_row_num*j + i*2 + 1] = i*ELEM_NUM + min2_index;
         }
         for (int i = 0; i < LEFTOVER ; i++){
-            nonzero_data[(GROUP_NUM) * 2 + i] = weight_mat[ (GROUP_NUM) * ELEM_NUM + i];
+            nonzero_data[(GROUP_NUM) * 2 + i] = weight_mat[j*num_input + (GROUP_NUM) * ELEM_NUM + i];
+            nonzero_rows[(GROUP_NUM) * 2 + i] = GROUP_NUM * ELEM_NUM + i ;
         }
     }
 
