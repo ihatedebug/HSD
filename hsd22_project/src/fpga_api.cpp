@@ -97,7 +97,7 @@ const float* __attribute__((optimize("O0"))) FPGA::blockMM()
 
   *(fpga_dma + 6) = 0x10000000;
   *(fpga_dma + 8) = 0xC0000000;
-  *(fpga_dma + 10) = 2 * v_size_ * v_size_ * sizeof(float);
+  *(fpga_dma + 10) = v_size_ * v_size_ * 2 * sizeof(float);
   while ((*(fpga_dma + 1) & 0x00000002) == 0)
       ;
   // fpga version
@@ -107,7 +107,7 @@ const float* __attribute__((optimize("O0"))) FPGA::blockMM()
 
   *(fpga_dma + 6) = 0xC0000000;
   *(fpga_dma + 8) = 0x10000000;
-  *(fpga_dma + 10) = 2 * v_size_ * v_size_ * sizeof(float);
+  *(fpga_dma + 10) = v_size_ * v_size_ * 2 * sizeof(float);
   while ((*(fpga_dma + 1) & 0x00000002) == 0)
       ;
 
