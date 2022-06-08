@@ -4,6 +4,7 @@
 #include<unistd.h>
 #include<sys/mman.h>
 #include<cstring>
+#include<stdlib.h>
 
 #define min(x,y) (((x)<(y))?(x):(y))
 
@@ -140,10 +141,10 @@ void FPGA::largeMM(const float *weight_mat, const float *input_mat, float *outpu
     float *m1 = this->matrix_M1();
     float *m2 = this->matrix_M2();
     
-    #define GROUP_NUM = num_output/4;
-    #define LEFTOVER = num_output%4;
-    #define ELEM_NUM = 4;
-    #define NONZERO_VSIZE = v_size_/2;
+    #define GROUP_NUM (num_output/4)
+    #define LEFTOVER (num_output%4)
+    #define ELEM_NUM 4
+    #define NONZERO_VSIZE = (v_size_/2)
 
     int nonzero_row_num = ((GROUP_NUM)*2 + LEFTOVER);
     float *nonzero_data = new float[nonzero_row_num*num_input];
