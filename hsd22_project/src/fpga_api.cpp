@@ -16,7 +16,6 @@ FPGA::FPGA(off_t data_addr, off_t output_addr, int m_size, int v_size)
 
   data_size_ = (m_size_+1)*v_size_; // fpga bram data size
   data_size_M = (2*v_size_)*v_size_*sizeof(float);
-  blk_size_M = 8 * 2 * sizeof(float);
 
   fd_ = open("/dev/mem", O_RDWR);
   data_M = static_cast<float*>(mmap(NULL, data_size_M, PROT_READ|PROT_WRITE, MAP_SHARED, fd_, data_addr));
@@ -25,7 +24,6 @@ FPGA::FPGA(off_t data_addr, off_t output_addr, int m_size, int v_size)
   output_ = static_cast<unsigned int*>(mmap(NULL, sizeof(unsigned int), PROT_READ|PROT_WRITE, MAP_SHARED,fd_, output_addr));
   output_MV = new unsigned int[m_size_];
   // output_M = static_cast<unsigned int*>(NULL);
-  fpga_dma = static_cast<unsigned int*>(mmap(NULL, blk_size_m, PROT_READ|PROT_WRITE, MAP_SHARED, fd_, 0x7E200000));
 
   num_block_call_ = 0;
 }
@@ -95,21 +93,9 @@ const float* __attribute__((optimize("O0"))) FPGA::blockMM()
 {
   num_block_call_ += 1;
 
-  *(fpga_dma + 6) = 0x10000000;
-  *(fpga_dma + 8) = 0xC0000000;
-  *(fpga_dma + 10) = 2 * v_size_ * v_size_ * sizeof(float);
-  while ((*(fpga_dma + 1) & 0x00000002) == 0)
-      ;
   // fpga version
   *output_ = 0x5555;
-  while (*output_ == 0x5555)
-      ;
-
-  *(fpga_dma + 6) = 0xC0000000;
-  *(fpga_dma + 8) = 0x10000000;
-  *(fpga_dma + 10) = 2 * v_size_ * v_size_ * sizeof(float);
-  while ((*(fpga_dma + 1) & 0x00000002) == 0)
-      ;
+  while(*output_ == 0x5555);
 
   return data_M;    
 }
@@ -153,12 +139,50 @@ void FPGA::largeMM(const float *weight_mat, const float *input_mat, float *outpu
 {
     float *m1 = this->matrix_M1();
     float *m2 = this->matrix_M2();
+    
+    #define GROUP_NUM = num_output/4;
+    #define LEFTOVER = num_output%4;
+    #define ELEM_NUM = 4;
+    #define NONZERO_VSIZE = v_size_/2;
+
+    int nonzero_row_num = ((GROUP_NUM)*2 + LEFTOVER);
+    float *nonzero_data = new float[nonzero_row_num*num_input];
+    int *nonzero_rows = new int[nonzero_row_num*num_input];
 
     // 0) Initialize output vector
     for (int i = 0; i < num_output * num_matrix2; ++i)
         output[i] = 0;
 
-    for (int i = 0; i < num_output; i += v_size_)
+    for (int j = 0; j < num_output; j++){
+        // 1) Compute Non-zero data & indices
+        for(int i = 0; i< GROUP_NUM ; i++){
+            float *test_block = {abs(weight_mat[j*num_input + i*ELEM_NUM]), abs(weight_mat[j*num_input + i*ELEM_NUM + 1]), abs(weight_mat[j*num_input + i*ELEM_NUM + 2]), abs(weight_mat[j*num_input + i*ELEM_NUM + 3])};
+            float min1_index = 0;
+            float min2_index = 1;
+            if(test_block[2]<test_block[min1_index])
+                min1_index = 2;
+            else if (test_block[2]<test_block[min2_index])
+                min2_index = 2;
+            if(test_block[3]<test_block[min1_index])
+                min1_index = 3;
+            else if (test_block[3]<test_block[min2_index])
+                min2_index = 3;
+            if(min1_index>min2_index){
+                int tmp = min2_index;
+                min2_index = min1_index;
+                min1_index = tmp;
+            }
+            nonzero_data[nonzero_row_num*j+ i*2] = test_block[min1_index];
+            nonzero_data[nonzero_row_num*j+ i*2 + 1] = test_block[min2_index];
+            nonzero_row_num[nonzero_row_num*j + i*2] = i + i*ELEM_NUM + min1_index;
+            nonzero_row_num[nonzero_row_num*j + i*2 + 1] = i*ELEM_NUM + min2_index;
+        }
+        for (int i = 0; i < LEFTOVER ; i++){
+            nonzero_data[(GROUP_NUM) * 2 + i] = weight_mat[ (GROUP_NUM) * ELEM_NUM + i];
+        }
+    }
+
+    for (int i = 0; i < nonzero_row_num; i += v_size_)
     {
         for (int j = 0; j < num_input; j += v_size_)
         {
@@ -166,19 +190,21 @@ void FPGA::largeMM(const float *weight_mat, const float *input_mat, float *outpu
             {
                 // 0) Initialize input vector
                 int block_row = min(v_size_, num_output - i);
-                int block_col_1 = min(v_size_, num_input - j);
+                int block_col_1 = min(v_size_/2, num_input - j);
                 int block_col_2 = min(v_size_, num_matrix2 - k);
 
                 // 1) Assign a m1
-                // IMPLEMENT THIS
-                memset(m1, 0, sizeof(float) * v_size_ * v_size_); // row * col_1
+                memset(m1, 0, sizeof(float) * v_size_/2 * v_size_); // row * col_1
                 for (int i1 = 0; i1 < block_row; i1++)
-                    memcpy(m1 + i1 * v_size_, weight_mat + (i + i1) * num_input + j, sizeof(float) * block_col_1);
+                    memcpy(m1 + i1 * v_size_/2, weight_mat + (i + i1) * num_input + j, sizeof(float) * block_col_1);
                 // 2) Assign a m2
-                // IMPLEMENT THIS
                 memset(m2, 0, sizeof(float) * v_size_ * v_size_); // col_1 * col_2
-                for (int i2 = 0; i2 < block_col_1; i2++)
-                    memcpy(m2 + i2 * v_size_, input_mat + (j + i2) * num_matrix2 + k, sizeof(float) * block_col_2);
+                for (int j2 = 0; j2 < num_output; j2++){
+                    for(int i2 = 0; i2 < nonzero_row_num; i2++){
+                        memcpy(m2 + i2 * v_size_, input_mat + (j + i2) * num_matrix2 + nonzero_rows[nonzero_row_num * j2 + i2]);   
+                    }
+                }
+                
                 // 3) Call a function `blockMM() to execute Matrix matrix multiplication
                 const float *ret = this->blockMM();
 
