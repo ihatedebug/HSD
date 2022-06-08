@@ -18,6 +18,7 @@ private:
   unsigned int *output_;
   unsigned int *output_M;
   unsigned int *output_MV;
+  unsigned int *fpga_dma;
 
   int m_size_;
   int v_size_;
@@ -27,6 +28,9 @@ private:
   int data_size_;
   int data_size_M;
   int num_block_call_;
+  int blk_size_M;
+  
+
 
 public:
   FPGA(off_t data_addr, off_t output_addr, int m_size, int v_size);

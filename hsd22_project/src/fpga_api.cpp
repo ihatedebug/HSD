@@ -19,13 +19,13 @@ FPGA::FPGA(off_t data_addr, off_t output_addr, int m_size, int v_size)
   blk_size_M = 8 * 2 * sizeof(float);
 
   fd_ = open("/dev/mem", O_RDWR);
-  data_M = static_cast<float*>(mmap(NULL, data_size_M, PROT_READ|PROT_WRITE, MAP_SHARED, fd_, data_addr));
+  data_M = static_cast<float*>(mmap(NULL, data_size_M, PROT_READ|PROT_WRITE, MAP_SHARED, fd_, 0x10000000));
   data_ = new float[data_size_];	
 
   output_ = static_cast<unsigned int*>(mmap(NULL, sizeof(unsigned int), PROT_READ|PROT_WRITE, MAP_SHARED,fd_, output_addr));
   output_MV = new unsigned int[m_size_];
   // output_M = static_cast<unsigned int*>(NULL);
-  fpga_dma = static_cast<unsigned int*>(mmap(NULL, blk_size_m, PROT_READ|PROT_WRITE, MAP_SHARED, fd_, 0x7E200000));
+  fpga_dma = static_cast<unsigned int*>(mmap(NULL, blk_size_M, PROT_READ|PROT_WRITE, MAP_SHARED, fd_, 0x7E200000));
 
   num_block_call_ = 0;
 }
